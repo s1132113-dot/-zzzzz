@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>英文課未寫作業登記系統 (極簡雲端同步版)</title>
+  <title>英文課未寫作業登記系統</title>
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -146,9 +146,9 @@
       <div>
         <label for="recorder">登記人員（學藝/小幫手）</label>
         <select id="recorder">
-          <option value="英語小幫手 A">英語小幫手 A</option>
-          <option value="英語小幫手 B">英語小幫手 B</option>
-          <option value="學藝股長">學藝股長</option>
+          <option value="黃子宸小老師A">黃子宸小老師A</option>
+          <option value="曾子恆小老師 B">曾子恆小老師 B</option>
+          <option value="林欣柔老師">林欣柔老師</option>
         </select>
       </div>
       <div>
@@ -174,7 +174,7 @@
   <div class="card">
     <h3>3. 目前未寫項目總統計</h3>
     <div class="action-buttons">
-      <button class="btn-sync" onclick="fetchCloudData()">🔄 手動整理雲端最新資料</button>
+      <button class="btn-sync" onclick="fetchCloudData()">🔄 手動同步最新資料</button>
       <button class="btn-copy" onclick="copySummary()">📋 複製總統計文字</button>
       <button class="btn-line" onclick="sendLineSummary()">💬 發送統計至 LINE</button>
       <button class="btn-reset" onclick="resetAllData()">⚠️ 清空所有歷史紀錄</button>
@@ -195,11 +195,11 @@
   </div>
 
   <script>
-    // 免費公用雲端資料點 (利用 JSONBlob API，無需任何帳號)
-    // 這串專屬識別碼已替你綁定好這個試算頻道
-    const CLOUD_URL = "https://jsonblob.com/api/jsonBlob/1223344556677889900_english_hw_zzz";
+    // 使用 npoint.io 提供的開源免費 JSON 儲存空間（跨域友善）
+    const BIN_ID = "47e4eb1bc1f6186f8ff5"; 
+    const CLOUD_URL = `https://api.npoint.io/${BIN_ID}`;
 
-    const studentNames = ["1號", "2號", "3號", "4號", "5號", "6號", "7號", "8號", "9號", "10號"];
+    const studentNames = [ "01 韓喬安","02 林依靜","03 吳淯綺","04 王婕娜","05 李宥萱","07 劉羽真","08 鄭湘蓉","09 黃彥錡","10 莊采蓁","11 陳思羽","12 黃心瑀","13 林羽蘋","14 陳巧柔","15 黃翊慈","16 金芸睿","17 陳建均", "18 王聖文","19 趙浤程","20 黃子宸","21 陳予澤","22 林威宇","23 宋緯濠","24 曾子恆","25 鄭丞傑","26 陳富家"];
     let records = {};
     let selectedThisTime = new Set();
 
@@ -214,53 +214,48 @@
       initLocalRecords();
       renderStudentGrid();
 
-      // 初次載入雲端資料
+      // 初次讀取
       fetchCloudData();
 
-      // 每 10 秒自動向雲端查詢是否有別人更新資料
-      setInterval(fetchCloudData, 10000);
+      // 每 8 秒自動向雲端同步
+      setInterval(fetchCloudData, 8000);
     };
 
     // 從雲端讀取資料
     function fetchCloudData() {
-      fetch(CLOUD_URL, {
-        method: 'GET',
-        headers: { 'Accept': 'application/json' }
-      })
-      .then(res => {
-        if (res.ok) return res.json();
-        throw new Error('尚未存有雲端資料');
-      })
+      fetch(CLOUD_URL)
+      .then(res => res.json())
       .then(data => {
         initLocalRecords();
-        if (data) {
+        if (data && typeof data === 'object') {
           Object.keys(data).forEach(name => {
             if (records[name]) records[name] = data[name];
           });
         }
         renderStudentGrid();
         renderTable();
-        document.getElementById('syncStatus').innerText = "🟢 已同步雲端最新資料 (" + new Date().toLocaleTimeString() + ")";
+        document.getElementById('syncStatus').innerText = "🟢 已與雲端同步 (" + new Date().toLocaleTimeString() + ")";
         document.getElementById('syncStatus').style.color = "#27ae60";
       })
       .catch(err => {
-        // 若雲端尚無資料則先上傳一份空初始資料
-        saveToCloud();
+        document.getElementById('syncStatus').innerText = "🔴 雲端連線失敗，請檢查網路";
+        document.getElementById('syncStatus').style.color = "#e74c3c";
       });
     }
 
-    // 上傳資料至雲端
+    // 儲存至雲端
     function saveToCloud() {
-      document.getElementById('syncStatus').innerText = "⏳ 正在同步至雲端...";
+      document.getElementById('syncStatus').innerText = "⏳ 正在更新至雲端...";
       document.getElementById('syncStatus').style.color = "#f39c12";
 
       fetch(CLOUD_URL, {
-        method: 'PUT',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(records)
       })
-      .then(res => {
-        document.getElementById('syncStatus').innerText = "🟢 雲端同步完成 (" + new Date().toLocaleTimeString() + ")";
+      .then(res => res.json())
+      .then(() => {
+        document.getElementById('syncStatus').innerText = "🟢 已更新至雲端 (" + new Date().toLocaleTimeString() + ")";
         document.getElementById('syncStatus').style.color = "#27ae60";
         renderStudentGrid();
         renderTable();
