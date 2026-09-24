@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>英文課未寫作業登記系統 (極簡雲端同步版)</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      max-width: 900px;
+      margin: 20px auto;
+      padding: 0 15px;
+      background-color: #f0f4f8;
+      color: #333;
+    }
+    h1 { text-align: center; color: #2c3e50; margin-bottom: 5px; }
+    .status-bar {
+      text-align: center;
+      font-size: 14px;
+      color: #27ae60;
+      margin-bottom: 20px;
+      font-weight: bold;
+    }
+    .card {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+      margin-bottom: 20px;
+    }
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-bottom: 15px;
+    }
+    label { font-weight: bold; display: block; margin-bottom: 5px; color: #34495e; }
+    input, select {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 15px;
+      box-sizing: border-box;
+    }
+    button {
+      padding: 10px 16px;
+      border: none;
+      border-radius: 6px;
+      background-color: #3498db;
+      color: white;
+      font-size: 15px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    button:hover { background-color: #2980b9; }
+    .btn-record {
+      background-color: #e74c3c;
+      width: 100%;
+      padding: 14px;
+      font-size: 18px;
+    }
+    .btn-record:hover { background-color: #c0392b; }
+    .btn-copy { background-color: #2ecc71; }
+    .btn-line { background-color: #06C755; }
+    .btn-reset { background-color: #7f8c8d; }
+    .btn-sync { background-color: #f39c12; }
+    .btn-del-item {
+      background-color: #ff7675;
+      color: white;
+      padding: 3px 8px;
+      font-size: 12px;
+      border-radius: 4px;
+    }
+
+    /* 學生選擇按鈕網格 */
+    .student-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+      max-height: 250px;
+      overflow-y: auto;
+      padding: 5px;
+      border: 1px solid #eee;
+      border-radius: 8px;
+    }
+    .student-btn {
+      padding: 12px 8px;
+      font-size: 15px;
+      background-color: #ecf0f1;
+      color: #2c3e50;
+      border: 2px solid #bdc3c7;
+      border-radius: 8px;
+      font-weight: bold;
+      cursor: pointer;
+      text-align: center;
+    }
+    .student-btn.selected {
+      background-color: #e74c3c;
+      color: white;
+      border-color: #c0392b;
+    }
+    .badge {
+      display: inline-block;
+      background: #34495e;
+      color: white;
+      border-radius: 12px;
+      padding: 2px 8px;
+      font-size: 12px;
+      margin-left: 4px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 10px;
+      text-align: left;
+    }
+    th { background-color: #f8f9fa; }
+    .tag-count {
+      background-color: #e74c3c;
+      color: white;
+      padding: 3px 8px;
+      border-radius: 10px;
+      font-weight: bold;
+    }
+    .action-buttons { display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap; }
+    .log-item { display: flex; justify-content: space-between; margin-bottom: 6px; }
+  </style>
+</head>
+<body>
+
+  <h1>📚 英文課未寫作業登記系統</h1>
+  <div class="status-bar" id="syncStatus">🔄 雲端連線中...</div>
+
+  <!-- 1. 基本設定 -->
+  <div class="card">
+    <h3>1. 登記資訊設定</h3>
+    <div class="form-grid">
+      <div>
+        <label for="recorder">登記人員（學藝/小幫手）</label>
+        <select id="recorder">
+          <option value="英語小幫手 A">英語小幫手 A</option>
+          <option value="英語小幫手 B">英語小幫手 B</option>
+          <option value="學藝股長">學藝股長</option>
+        </select>
+      </div>
+      <div>
+        <label for="recordDate">登記日期</label>
+        <input type="date" id="recordDate">
+      </div>
+      <div>
+        <label for="hwName">缺交作業名稱</label>
+        <input type="text" id="hwName" placeholder="例如：Unit 3 習作 p.12">
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. 點名登記區 -->
+  <div class="card">
+    <h3>2. 勾選這次「未寫」的同學（點一下變紅）</h3>
+    <div id="studentGrid" class="student-grid"></div>
+    <br>
+    <button class="btn-record" onclick="submitRecord()">📥 確認送出這筆登記</button>
+  </div>
+
+  <!-- 3. 統計與歷史 -->
+  <div class="card">
+    <h3>3. 目前未寫項目總統計</h3>
+    <div class="action-buttons">
+      <button class="btn-sync" onclick="fetchCloudData()">🔄 手動整理雲端最新資料</button>
+      <button class="btn-copy" onclick="copySummary()">📋 複製總統計文字</button>
+      <button class="btn-line" onclick="sendLineSummary()">💬 發送統計至 LINE</button>
+      <button class="btn-reset" onclick="resetAllData()">⚠️ 清空所有歷史紀錄</button>
+    </div>
+    
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 20%;">學生姓名/座號</th>
+          <th style="width: 15%;">被登記項數</th>
+          <th style="width: 65%;">詳細未交紀錄 (可刪除)</th>
+        </tr>
+      </thead>
+      <tbody id="statTableBody">
+        <tr><td colspan="3" style="text-align:center; color:#888;">正在讀取雲端資料...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <script>
+    // 免費公用雲端資料點 (利用 JSONBlob API，無需任何帳號)
+    // 這串專屬識別碼已替你綁定好這個試算頻道
+    const CLOUD_URL = "https://jsonblob.com/api/jsonBlob/1223344556677889900_english_hw_zzz";
+
+    const studentNames = ["1號", "2號", "3號", "4號", "5號", "6號", "7號", "8號", "9號", "10號"];
+    let records = {};
+    let selectedThisTime = new Set();
+
+    function initLocalRecords() {
+      studentNames.forEach(name => {
+        records[name] = { count: 0, logs: [] };
+      });
+    }
+
+    window.onload = function() {
+      document.getElementById('recordDate').value = new Date().toISOString().substring(0, 10);
+      initLocalRecords();
+      renderStudentGrid();
+
+      // 初次載入雲端資料
+      fetchCloudData();
+
+      // 每 10 秒自動向雲端查詢是否有別人更新資料
+      setInterval(fetchCloudData, 10000);
+    };
+
+    // 從雲端讀取資料
+    function fetchCloudData() {
+      fetch(CLOUD_URL, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' }
+      })
+      .then(res => {
+        if (res.ok) return res.json();
+        throw new Error('尚未存有雲端資料');
+      })
+      .then(data => {
+        initLocalRecords();
+        if (data) {
+          Object.keys(data).forEach(name => {
+            if (records[name]) records[name] = data[name];
+          });
+        }
+        renderStudentGrid();
+        renderTable();
+        document.getElementById('syncStatus').innerText = "🟢 已同步雲端最新資料 (" + new Date().toLocaleTimeString() + ")";
+        document.getElementById('syncStatus').style.color = "#27ae60";
+      })
+      .catch(err => {
+        // 若雲端尚無資料則先上傳一份空初始資料
+        saveToCloud();
+      });
+    }
+
+    // 上傳資料至雲端
+    function saveToCloud() {
+      document.getElementById('syncStatus').innerText = "⏳ 正在同步至雲端...";
+      document.getElementById('syncStatus').style.color = "#f39c12";
+
+      fetch(CLOUD_URL, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(records)
+      })
+      .then(res => {
+        document.getElementById('syncStatus').innerText = "🟢 雲端同步完成 (" + new Date().toLocaleTimeString() + ")";
+        document.getElementById('syncStatus').style.color = "#27ae60";
+        renderStudentGrid();
+        renderTable();
+      })
+      .catch(err => {
+        alert("雲端同步失敗，請檢查網路狀態！");
+      });
+    }
+
+    function renderStudentGrid() {
+      const grid = document.getElementById('studentGrid');
+      grid.innerHTML = '';
+      studentNames.forEach(name => {
+        const btn = document.createElement('div');
+        const count = records[name] ? records[name].count : 0;
+        const isSelected = selectedThisTime.has(name);
+        btn.className = `student-btn ${isSelected ? 'selected' : ''}`;
+        btn.innerHTML = `${name} <span class="badge">累計:${count}</span>`;
+        btn.onclick = () => {
+          if (selectedThisTime.has(name)) selectedThisTime.delete(name);
+          else selectedThisTime.add(name);
+          renderStudentGrid();
+        };
+        grid.appendChild(btn);
+      });
+    }
+
+    function submitRecord() {
+      const recorder = document.getElementById('recorder').value;
+      const date = document.getElementById('recordDate').value;
+      const hwName = document.getElementById('hwName').value.trim();
+
+      if (!hwName) { alert('請先填寫「缺交作業名稱」！'); return; }
+      if (selectedThisTime.size === 0) { alert('請至少選擇一位未寫作業的同學！'); return; }
+
+      selectedThisTime.forEach(name => {
+        records[name].count += 1;
+        if (!records[name].logs) records[name].logs = [];
+        records[name].logs.push({ date, hw: hwName, recorder });
+      });
+
+      selectedThisTime.clear();
+      document.getElementById('hwName').value = '';
+      saveToCloud();
+    }
+
+    function deleteSingleLog(name, logIndex) {
+      if (confirm(`確定要刪除 ${name} 的這筆缺交紀錄嗎？`)) {
+        records[name].logs.splice(logIndex, 1);
+        records[name].count -= 1;
+        saveToCloud();
+      }
+    }
+
+    function resetAllData() {
+      if (confirm('確定要「清空所有歷史紀錄」嗎？手機與電腦端的紀錄都會歸零喔！')) {
+        initLocalRecords();
+        saveToCloud();
+      }
+    }
+
+    function renderTable() {
+      const tbody = document.getElementById('statTableBody');
+      tbody.innerHTML = '';
+      let hasData = false;
+
+      studentNames.forEach(name => {
+        const data = records[name];
+        if (data && data.count > 0) {
+          hasData = true;
+          const tr = document.createElement('tr');
+          let logDetailsHTML = '';
+          data.logs.forEach((l, index) => {
+            logDetailsHTML += `
+              <div class="log-item">
+                <span>• [${l.date}] ${l.hw} (${l.recorder}記)</span>
+                <button class="btn-del-item" onclick="deleteSingleLog('${name}', ${index})">🗑️ 刪除</button>
+              </div>
+            `;
+          });
+          tr.innerHTML = `<td><b>${name}</b></td><td><span class="tag-count">${data.count} 項</span></td><td>${logDetailsHTML}</td>`;
+          tbody.appendChild(tr);
+        }
+      });
+
+      if (!hasData) {
+        tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; color:#888;">尚無任何缺交紀錄</td></tr>';
+      }
+    }
+
+    function generateSummaryText() {
+      let text = `📢 【英文作業未交累計統計】\n`;
+      let hasData = false;
+      studentNames.forEach(name => {
+        const data = records[name];
+        if (data && data.count > 0) {
+          hasData = true;
+          text += `\n👤 ${name}（累計未交 ${data.count} 項）：\n`;
+          data.logs.forEach(l => { text += `  └ ${l.date} - ${l.hw} (${l.recorder})\n`; });
+        }
+      });
+      return hasData ? text : `📢 【英文作業繳交狀況】\n目前全員皆無未交紀錄！🎉`;
+    }
+
+    function copySummary() {
+      navigator.clipboard.writeText(generateSummaryText()).then(() => alert('已複製統計文字！'));
+    }
+
+    function sendLineSummary() {
+      window.open(`https://line.me/R/msg/text/?${encodeURIComponent(generateSummaryText())}`, '_blank');
+    }
+  </script>
+
+</body>
+</html>
